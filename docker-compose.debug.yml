@@ -1,0 +1,72 @@
+# name: iset-local
+
+x-labels: &network
+  networks:
+    - iset
+
+services:
+  files:
+    image: files-local:latest
+    build:
+      context: .
+      dockerfile: Dockerfile.local
+    container_name: files-local
+    hostname: files-local
+    restart: always
+    env_file: .env
+    volumes:
+        - ./backend:/iset:rw
+    ports:
+      - 8081:80
+      - 5679:5679
+    command: 
+      [
+        'bash',
+        '-c',
+        'python -m debugpy --wait-for-client --listen 0.0.0.0:5679 -m uvicorn app.src.main:app --host 0.0.0.0 --port 80 --reload'
+      ]
+    depends_on:
+      - minio
+    <<: *network
+
+  minio:
+    image: bitnami/minio:2025.3.12-debian-12-r1
+    container_name: minio-local
+    hostname: minio-local
+    restart: always
+    env_file: .env
+    environment:
+      - MINIO_ROOT_USER
+      - MINIO_ROOT_PASSWORD
+    volumes:
+      - minio:/data
+    ports:
+      - 9000:9000
+      - 9001:9001
+    <<: *network
+
+  rabbitmq:
+    image: bitnami/rabbitmq:4.1.0-debian-12-r1
+    container_name: rabbitmq-local
+    hostname: rabbitmq-local
+    restart: always
+    ports:
+      - "5672:5672"   # AMQP порт
+      - "15672:15672" # Web UI
+    environment:
+      - RABBITMQ_DEFAULT_USER=guest
+      - RABBITMQ_DEFAULT_PASS=guest
+      - RABBITMQ_MANAGEMENT_ALLOW_WEB_ACCESS=true
+      - RABBITMQ_LOAD_DEFINITIONS=yes
+      - RABBITMQ_DEFINITIONS_FILE=/etc/rabbitmq/load_definition.json
+    volumes:
+      - ./backend/app/configs/load_definition.json:/etc/rabbitmq/load_definition.json
+    <<: *network
+
+volumes:
+  minio:
+    name: minio-local
+
+networks:
+  iset:
+    name: iset-local

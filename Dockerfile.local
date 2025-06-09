@@ -1,0 +1,37 @@
+FROM python:3.11.11-slim AS image-env
+
+ENV VIRTUAL_ENV=/opt/venv
+RUN python -m venv $VIRTUAL_ENV
+ENV PATH="$VIRTUAL_ENV/bin:$PATH"
+RUN apt-get update -qq && apt-get install -yqq curl && apt-get clean
+COPY ./backend/requirements_dev.txt .
+RUN pip install --upgrade pip
+RUN pip install --no-python-version-warning --disable-pip-version-check -r requirements_dev.txt
+RUN pip install watchdog
+
+FROM image-env AS image-build
+
+ARG WORKDIR=/iset
+WORKDIR ${WORKDIR}
+COPY ./backend/ .
+COPY LICENSE.md .
+COPY README.md .
+
+RUN ./scripts/after-build.sh
+RUN rm -rf scripts/after-build.sh
+
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+
+ARG USER=iset
+ARG UID=1000
+ARG GID=1000
+
+ENV PYTHONPATH="${PYTHONPATH}:/iset/app/src"
+
+RUN groupadd -g ${GID} ${USER} && \
+useradd --no-create-home --no-log-init -u ${UID} -g ${GID} ${USER} && \
+chown -R ${UID}:${GID} ${WORKDIR}
+USER ${USER}
+
+RUN ls -la
