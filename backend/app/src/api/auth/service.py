@@ -2,13 +2,13 @@ import json
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import APIKeyHeader, HTTPAuthorizationCredentials, HTTPBearer
-from httpx import AsyncClient, Response
-from jose import jwt
+# from httpx import AsyncClient, Response
+# from jose import jwt
 from datetime import datetime, timedelta
 
 from app.src.api.auth.models import TokenBearer, TokenData
 from app.configs.settings import get_settings
-from app.src.core.constants.constants import MAIN_SERVICE_VERIFY_ACCESS_TOKEN_URL
+# from app.src.core.constants.constants import MAIN_SERVICE_VERIFY_ACCESS_TOKEN_URL
 
 oauth2_scheme = HTTPBearer(bearerFormat='JWT', auto_error=False)
 config = get_settings()

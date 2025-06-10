@@ -8,6 +8,10 @@ class BaseMessageBroker(ABC):
     async def connect(self):
         ...
 
+    @abstractmethod
+    async def setup_infrastructure(self):
+        ...
+
     # @abstractmethod
     # async def publish_saga_command(self, saga: Saga, step: int) -> None:
     #     ...

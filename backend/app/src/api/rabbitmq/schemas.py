@@ -1,6 +1,5 @@
-from fastapi import File, Query, UploadFile
 from pydantic import BaseModel
-
+from enum import Enum
 from app.configs.settings import get_settings
 
 config = get_settings()
@@ -11,3 +10,8 @@ class ObjectBase(BaseModel):
     system_entity: str
     row_entity_id: str
     type_attachment: str
+
+
+class RMQDestinationType(Enum):
+    QUEUE = 'queue'
+    EXCHANGE = 'exchange'
