@@ -14,8 +14,6 @@ config = get_settings()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
 
-    logger.info("Started ORCHESTRATOR")
-
     rabbitmq_client = RabbitMQClient()
     try:
         await rabbitmq_client.connect()
@@ -31,7 +29,6 @@ async def lifespan(app: FastAPI):
     yield
 
     rabbitmq_client.close()
-    logger.info("Stoped ORCHESTRATOR")
 
 
 if config.ENVIRONMENT_NAME in ("prod",):

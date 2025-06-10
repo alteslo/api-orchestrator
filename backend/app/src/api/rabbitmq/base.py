@@ -3,7 +3,7 @@ from dataclasses import dataclass
 
 
 @dataclass
-class BaseMessageBroker(ABC):
+class BaseAMQPBroker(ABC):
     @abstractmethod
     async def connect(self):
         ...
@@ -11,14 +11,6 @@ class BaseMessageBroker(ABC):
     @abstractmethod
     async def setup_infrastructure(self):
         ...
-
-    # @abstractmethod
-    # async def publish_saga_command(self, saga: Saga, step: int) -> None:
-    #     ...
-
-    # @abstractmethod
-    # async def publish_compensation(self, saga: Saga, step: int):
-    #     ...
 
     @abstractmethod
     async def consume_events(self, callback) -> None:

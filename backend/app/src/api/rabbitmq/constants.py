@@ -8,3 +8,7 @@ RMQ_ROUTING_KEY = "minio.bucket.events"
 DLX_EXCHANGE_NAME = "minio_events_dlx"
 DLX_QUEUE_NAME = "minio_events_dlq"
 DLX_ROUTING_KEY = "minio_events_dlq"
+
+SYSTEM_EXCHANGE_NAME = "system.exchange"
+SYSTEM_NOTIFICATION_QUEUE_NAME = "system.notifications.queue"
+SYSTEM_ROUTING_KEY = "system.event.configuration_ready"

@@ -11,7 +11,7 @@ rabbitmq_router = APIRouter()
 config = get_settings()
 
 
-@rabbitmq_router.get(path="/queue_info", tags=["rabbitmq_info"])
+@rabbitmq_router.get(path="/queue_info", tags=["rabbitmq"])
 async def queue_info(queue_name: str, client: RabbitMQClient = Depends(get_rabbitmq_client)):
     """Возвращает список объектов относящихся к переданной сущности"""
     try:
@@ -20,12 +20,12 @@ async def queue_info(queue_name: str, client: RabbitMQClient = Depends(get_rabbi
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@rabbitmq_router.get(path="/list_queues", tags=["rabbitmq_info"])
+@rabbitmq_router.get(path="/list_queues", tags=["rabbitmq"])
 async def list_queues(client: httpx.AsyncClient = Depends(get_rabbitmq_http_client)):
     """Возвращает список объектов относящихся к переданной сущности"""
     vhost = ""
     try:
-        response = await client.get(f"/queues/{vhost}")
+        response = await client.get(f"/queues/{vhost}")    # TODO Переделать, например сделать отдельный клиент RabbitMQManagementClient
         response.raise_for_status()
         return response.json()
     except httpx.HTTPStatusError as e:
@@ -35,3 +35,11 @@ async def list_queues(client: httpx.AsyncClient = Depends(get_rabbitmq_http_clie
             status_code=e.response.status_code,
             detail=e.response.text
         )
+
+
+@rabbitmq_router.put(path="/set_rabbitmq_config", tags=["rabbitmq"])
+async def set_rabbitmq_config(client: RabbitMQClient = Depends(get_rabbitmq_client)):
+    try:
+        return await client.setup_infrastructure()
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
