@@ -18,7 +18,7 @@ from app.src.api.rabbitmq.constants import (
     RMQ_QUEUE_NAME,
     RMQ_ROUTING_KEY,
     RMQ_USER,
-    SYSTEM_EXCHANGE_NAME,
+    SYSTEM_EXCHANGE_NAME
 )
 from app.src.core.logging import logger
 
