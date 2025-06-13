@@ -177,6 +177,16 @@ class RabbitMQClient(BaseAMQPBroker):
             routing_key=RMQ_ROUTING_KEY
         )
 
+        logger.info("Дефолтная инфраструктура настроена")
+
+    async def publish_configuration_ready(self, queue_name: str, routing_key: str):
+        """
+        Публикует событие о готовности очереди в системный обменник.
+
+        :param queue_name: Имя очереди, которая была создана
+        :param routing_key: Роутинг ключ, по которому она доступна
+        """
+
         # Setup system notification infrastructure
         system_exchange = await self.channel.declare_exchange(
             name=SYSTEM_EXCHANGE_NAME,
@@ -191,15 +201,6 @@ class RabbitMQClient(BaseAMQPBroker):
 
         await system_queue.bind(system_exchange, routing_key=SYSTEM_ROUTING_KEY)
 
-        logger.info("Дефолтная инфраструктура настроена")
-
-    async def publish_configuration_ready(self, queue_name: str, routing_key: str):
-        """
-        Публикует событие о готовности очереди в системный обменник.
-
-        :param queue_name: Имя очереди, которая была создана
-        :param routing_key: Роутинг ключ, по которому она доступна
-        """
         if not self.channel:
             logger.error("Канал не инициализирован")
             raise RuntimeError("Сначала вызовите connect()")
@@ -217,7 +218,7 @@ class RabbitMQClient(BaseAMQPBroker):
                 delivery_mode=2  # persistent message
             )
 
-            await self.channel.default_exchange.publish(
+            await system_exchange.publish(
                 message=message,
                 routing_key=SYSTEM_ROUTING_KEY
             )
