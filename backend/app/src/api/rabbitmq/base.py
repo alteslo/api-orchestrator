@@ -1,5 +1,8 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from typing import Protocol
+
+from aio_pika.abc import AbstractChannel, AbstractRobustConnection
 
 
 @dataclass
@@ -9,7 +12,15 @@ class BaseAMQPBroker(ABC):
         ...
 
     @abstractmethod
+    async def close(self):
+        ...
+
+    @abstractmethod
     async def setup_infrastructure(self):
+        ...
+
+    @abstractmethod
+    async def publish_configuration_ready(self):
         ...
 
     @abstractmethod
@@ -24,6 +35,12 @@ class BaseAMQPBroker(ABC):
     async def get_queue_info(self, queue_name: str):
         ...
 
-    @abstractmethod
-    async def close(self):
+
+class AMQPConnectionFactory(Protocol):
+    async def __call__(self) -> AbstractRobustConnection:
+        ...
+
+
+class AMQPChannelFactory(Protocol):
+    async def __call__(self, connection: AbstractRobustConnection) -> AbstractChannel:
         ...

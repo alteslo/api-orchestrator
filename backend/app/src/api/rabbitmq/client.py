@@ -1,12 +1,14 @@
 import json
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 import aio_pika
+from aio_pika import ExchangeType, Message
 from aio_pika.abc import AbstractChannel, AbstractRobustConnection
+from api.rabbitmq.schemas import InfrastructureConfig, RMQDestinationType, SystemConfig
 
 from app.configs.settings import get_settings
-from app.src.api.rabbitmq.base import BaseAMQPBroker
+from app.src.api.rabbitmq.base import AMQPChannelFactory, AMQPConnectionFactory, BaseAMQPBroker
 from app.src.api.rabbitmq.constants import (
     DLX_EXCHANGE_NAME,
     DLX_QUEUE_NAME,
@@ -17,56 +19,121 @@ from app.src.api.rabbitmq.constants import (
     RMQ_ROUTING_KEY,
     RMQ_USER,
     SYSTEM_EXCHANGE_NAME,
-    SYSTEM_NOTIFICATION_QUEUE_NAME,
-    SYSTEM_ROUTING_KEY
 )
 from app.src.core.logging import logger
 
-from api.rabbitmq.schemas import RMQDestinationType
-
 config = get_settings()
 
-QueueInfo = dict[str, Any]  # TODO переделать в нормальный тип
-ExchangeInfo = dict[str, Any]  # TODO переделать в нормальный тип
+QueueInfo = dict[str, Any]
+ExchangeInfo = dict[str, Any]
+
+
+# TODO Разделение ответственности: вынести публикацию событий в отдельный класс.
+# TODO Импорты: получать константы из конфига.
+
+
+class InfrastructureLoader:
+    @staticmethod
+    def load(path: Path) -> InfrastructureConfig:
+        """Загружает JSON-конфигурацию из файла."""
+        if not path.exists():
+            raise FileNotFoundError(f"Config file {path} not found")
+        with open(path, 'r') as f:
+            data = json.load(f)
+        return InfrastructureConfig(**data)
 
 
 class RabbitMQClient(BaseAMQPBroker):
-    def __init__(self):
-        self.connection: AbstractRobustConnection | None = None
-        self.channel: AbstractChannel | None = None
-        self.exchange: aio_pika.Exchange | None = None
-        self.dlx_exchange: aio_pika.Exchange | None = None
-        self.orchestrator_queue: aio_pika.Queue | None = None
+    def __init__(
+        self,
+        connection: AbstractRobustConnection | None = None,
+        channel: AbstractChannel | None = None,
+        connection_factory: Optional[AMQPConnectionFactory] = None,
+        channel_factory: AMQPChannelFactory | None = None
+    ):
+        # Зависимости
+        self.connection: AbstractRobustConnection | None = connection
+        self.channel: AbstractChannel | None = channel
+        self._connection_factory = connection_factory or self._default_connection_factory
+        self._channel_factory = channel_factory or self._default_channel_factory
+
+        # Конфигурация
         self.config_file: Path = Path("app/configs/load_definition.json")
-        self.infrastructure_config: dict[str, Any] = {}
+        self.infrastructure_config: InfrastructureConfig | None = None
 
+    # ==== Методы жизненного цикла ====
     async def connect(self) -> None:
-        """Устанавливает соединение с RabbitMQ и настраивает инфраструктуру"""
-        self.connection = await aio_pika.connect_robust(
-            host='rabbitmq-local',
-            port=RMQ_PORT,
-            login=RMQ_USER,
-            password=RMQ_PASS,
-        )
-        self.channel = await self.connection.channel()
+        """Устанавливает соединение с RabbitMQ."""
+        if not self.connection:
+            self.connection = await self._connection_factory()
+        if not self.channel:
+            self.channel = await self._channel_factory(self.connection)
+        logger.info("Соединение с RabbitMQ установлено")
 
+    async def close(self) -> None:
+        """Закрывает соединение с RabbitMQ"""
+        if self.connection:
+            await self.connection.close()
+            logger.info("Соединение с RabbitMQ закрыто")
+
+    # ==== Общее API / Бизнесс логика ====
     async def setup_infrastructure(self, config_file: str | Path | None = None):
         """Основная точка входа для настройки инфраструктуры."""
         if config_file:
             self.config_file = Path(config_file)
         await self._setup_infrastructure()
 
+    async def publish_configuration_ready(self, services_config: list[SystemConfig]):
+        """
+        Публикует событие о готовности очереди в системный обменник.
+        :param queue_name: Имя очереди, которая была создана
+        :param routing_key: Роутинг ключ, по которому она доступна
+        """
+
+        if not self.channel:
+            logger.error("Канал не инициализирован")
+            raise RuntimeError("Сначала вызовите connect()")
+
+        system_exchange = await self.channel.declare_exchange(
+            name=SYSTEM_EXCHANGE_NAME,
+            type=ExchangeType.TOPIC,
+            durable=True
+        )
+
+        for service in services_config:
+
+            service_name = service.service_name
+            service_routing_key = service.service_routing_key
+            service_config = service.service_config
+
+            system_queue = await self.channel.declare_queue(name=service_name, durable=True)
+            await system_queue.bind(system_exchange, routing_key=service_routing_key)
+
+            try:
+                message = Message(
+                    body=service_config.model_dump_json().encode(),
+                    content_type="application/json",
+                    delivery_mode=2  # persistent message
+                )
+
+                await system_exchange.publish(
+                    message=message,
+                    routing_key=service_routing_key
+                )
+
+                logger.info(f"Событие configuration_ready опубликовано для {service_name} с ключом {service_routing_key}")
+            except Exception as e:
+                logger.error(f"Ошибка при публикации события configuration_ready: {e}")
+                raise
+
+    # ==== Приватные методы / помощники ====
     async def _load_config(self) -> None:
-        """Load infrastructure configuration from JSON file"""
+        """Загружает JSON-конфигурацию из файла."""
         try:
             config_path = Path(self.config_file)
-            if config_path.exists():
-                with open(config_path, 'r') as f:
-                    self.infrastructure_config = json.load(f)
-            else:
-                logger.warning(f"Config file {self.config_file} not found, using default settings")
+            self.infrastructure_config = InfrastructureLoader.load(config_path)
         except Exception as e:
-            logger.error(f"Error loading config file: {e}")
+            logger.error(f"Ошибка при загрузке конфига: {e}")
             raise
 
     async def _setup_infrastructure(self) -> None:
@@ -85,149 +152,94 @@ class RabbitMQClient(BaseAMQPBroker):
         await self._setup_exchanges_from_config()
         await self._setup_queues_from_config()
         await self._setup_bindings_from_config()
-
-        # Если есть очередь из конфига — отправить событие
-        queues = self.infrastructure_config.get('queues', [])
-        for queue in queues:
-            await self.publish_configuration_ready(queue['name'], queue.get('default_routing_key', '#'))
-
         logger.info("Инфраструктура RabbitMQ успешно создана")
+
+        if self.infrastructure_config.services_config:
+            await self.publish_configuration_ready(self.infrastructure_config.services_config)
 
     async def _setup_exchanges_from_config(self) -> None:
         """Создаёт обменники из конфига."""
-        exchanges = self.infrastructure_config.get('exchanges', [])
+        exchanges = self.infrastructure_config.exchanges
         for exchange_cfg in exchanges:
             await self.channel.declare_exchange(
-                name=exchange_cfg['name'],
-                type=exchange_cfg['type'],
-                durable=exchange_cfg.get('durable', False),
-                auto_delete=exchange_cfg.get('auto_delete', False),
-                internal=exchange_cfg.get('internal', False),
-                arguments=exchange_cfg.get('arguments', {})
+                name=exchange_cfg.name,
+                type=exchange_cfg.type,
+                durable=exchange_cfg.durable,
+                auto_delete=exchange_cfg.auto_delete,
+                internal=exchange_cfg.internal,
+                arguments=exchange_cfg.arguments
             )
 
     async def _setup_queues_from_config(self) -> None:
         """Создаёт очереди из конфига."""
-        queues = self.infrastructure_config.get('queues', [])
+        queues = self.infrastructure_config.queues
         for queue_cfg in queues:
             await self.channel.declare_queue(
-                name=queue_cfg['name'],
-                durable=queue_cfg.get('durable', False),
-                auto_delete=queue_cfg.get('auto_delete', False),
-                arguments=queue_cfg.get('arguments', {})
+                name=queue_cfg.name,
+                durable=queue_cfg.durable,
+                auto_delete=queue_cfg.auto_delete,
+                arguments=queue_cfg.arguments
             )
 
     async def _setup_bindings_from_config(self) -> None:
         """Создаёт привязки из конфига."""
-        bindings = self.infrastructure_config.get('bindings', [])
+        bindings = self.infrastructure_config.bindings
         for binding in bindings:
-            if binding['destination_type'] == RMQDestinationType.QUEUE:
-                queue = await self.channel.get_queue(binding['destination'])
+            if binding.destination_type == RMQDestinationType.QUEUE:
+                queue = await self.channel.get_queue(binding.destination)
                 await queue.bind(
-                    exchange=binding['source'],
-                    routing_key=binding['routing_key'],
-                    arguments=binding.get('arguments', {})
+                    exchange=binding.source,
+                    routing_key=binding.routing_key,
+                    arguments=binding.arguments
                 )
             elif binding['destination_type'] == RMQDestinationType.EXCHANGE:
                 exchange = await self.channel.get_exchange(binding['destination'])
                 await exchange.bind(
-                    exchange=binding['source'],
-                    routing_key=binding['routing_key'],
-                    arguments=binding.get('arguments', {})
+                    exchange=binding.source,
+                    routing_key=binding.routing_key,
+                    arguments=binding.arguments
                 )
 
     async def _setup_default_infrastructure(self) -> None:
         """Создаёт дефолтную инфраструктуру, если конфиг не найден."""
-        self.exchange = await self.channel.declare_exchange(
+        exchange = await self.channel.declare_exchange(
             name=RMQ_EXCHANGE_NAME,
-            type='topic',
+            type=ExchangeType.TOPIC,
             durable=True
         )
-        self.dlx_exchange = await self.channel.declare_exchange(
+        dlx_exchange = await self.channel.declare_exchange(
             name=DLX_EXCHANGE_NAME,
-            type='topic',
+            type=ExchangeType.TOPIC,
             durable=True
         )
 
-        # Create DLQ and bind to DLX
-        dlx_queue = await self.channel.declare_queue(
-            name=DLX_QUEUE_NAME,
-            durable=True,
-            arguments={'x-queue-type': 'classic'}
-        )
-        await dlx_queue.bind(exchange=DLX_EXCHANGE_NAME, routing_key='#')
+        dlx_queue = await self.channel.declare_queue(name=DLX_QUEUE_NAME, durable=True, arguments={'x-queue-type': 'classic'})
+        await dlx_queue.bind(exchange=dlx_exchange, routing_key='#')
 
-        # Arguments for queues with DLX settings
         queue_args = {
             'x-dead-letter-exchange': DLX_EXCHANGE_NAME,
             'x-dead-letter-routing-key': DLX_QUEUE_NAME,
             'x-queue-type': 'classic'
         }
 
-        # Create main queues with DLX settings
-        main_queue = await self.channel.declare_queue(
-            name=RMQ_QUEUE_NAME,
-            durable=True,
-            arguments=queue_args
-        )
-
-        # Bind queue to exchange
-        await main_queue.bind(
-            exchange=RMQ_EXCHANGE_NAME,
-            routing_key=RMQ_ROUTING_KEY
-        )
+        main_queue = await self.channel.declare_queue(name=RMQ_QUEUE_NAME, durable=True, arguments=queue_args)
+        await main_queue.bind(exchange=exchange, routing_key=RMQ_ROUTING_KEY)
 
         logger.info("Дефолтная инфраструктура настроена")
 
-    async def publish_configuration_ready(self, queue_name: str, routing_key: str):
-        """
-        Публикует событие о готовности очереди в системный обменник.
-
-        :param queue_name: Имя очереди, которая была создана
-        :param routing_key: Роутинг ключ, по которому она доступна
-        """
-
-        # Setup system notification infrastructure
-        system_exchange = await self.channel.declare_exchange(
-            name=SYSTEM_EXCHANGE_NAME,
-            type='topic',
-            durable=True
+    # ==== Default factories (can be overridden via DI) ====
+    async def _default_connection_factory(self) -> AbstractRobustConnection:
+        return await aio_pika.connect_robust(
+            host='rabbitmq-local',
+            port=RMQ_PORT,
+            login=RMQ_USER,
+            password=RMQ_PASS,
         )
 
-        system_queue = await self.channel.declare_queue(
-            name=SYSTEM_NOTIFICATION_QUEUE_NAME,
-            durable=True
-        )
+    async def _default_channel_factory(self, connection: AbstractRobustConnection) -> AbstractChannel:
+        return await connection.channel()
 
-        await system_queue.bind(system_exchange, routing_key=SYSTEM_ROUTING_KEY)
-
-        if not self.channel:
-            logger.error("Канал не инициализирован")
-            raise RuntimeError("Сначала вызовите connect()")
-
-        try:
-            event = {
-                "event_type": "configuration_ready",
-                "queue_name": queue_name,
-                "routing_key": routing_key
-            }
-
-            message = aio_pika.Message(
-                body=json.dumps(event).encode(),
-                content_type="application/json",
-                delivery_mode=2  # persistent message
-            )
-
-            await system_exchange.publish(
-                message=message,
-                routing_key=SYSTEM_ROUTING_KEY
-            )
-
-            logger.info(f"Событие configuration_ready опубликовано для {queue_name} с ключом {routing_key}")
-        except Exception as e:
-            logger.error(f"Ошибка при публикации события configuration_ready: {e}")
-            raise
-
+    # ==== Методы Consumer ====
     async def consume_events(self, callback) -> None:
         """Запускает потребителя событий"""
         pass
@@ -235,12 +247,7 @@ class RabbitMQClient(BaseAMQPBroker):
     async def stop_consuming(self, topic: str):
         pass
 
-    async def close(self) -> None:
-        """Закрывает соединение с RabbitMQ"""
-        if self.connection:
-            await self.connection.close()
-            logger.info("Соединение с RabbitMQ закрыто")
-
+    # ==== Прикладные методы ====
     async def get_queue_info(self, queue_name: str) -> QueueInfo:
         """Возвращает информацию о конкретной очереди."""
         try:

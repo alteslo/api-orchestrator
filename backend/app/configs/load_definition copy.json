@@ -1,4 +1,57 @@
 {
+    "rabbit_version": "4.1.0",
+    "rabbitmq_version": "4.1.0",
+    "product_name": "RabbitMQ",
+    "product_version": "4.1.0",
+    "rabbitmq_definition_format": "cluster",
+    "original_cluster_name": "rabbit@rabbitmq-local",
+    "explanation": "Definitions of cluster 'rabbit@rabbitmq-local'",
+    "users": [
+        {
+            "name": "guest",
+            "password_hash": "67Dm6e2Uhmtx41IhyrfTaaE9j6uUQ+kXggBS83gUYflnNe2D",
+            "hashing_algorithm": "rabbit_password_hashing_sha256",
+            "tags": [
+                "administrator"
+            ],
+            "limits": {}
+        }
+    ],
+    "vhosts": [
+        {
+            "name": "/",
+            "description": "Default virtual host",
+            "metadata": {
+                "description": "Default virtual host",
+                "tags": [],
+                "default_queue_type": "classic"
+            },
+            "tags": [],
+            "default_queue_type": "classic"
+        }
+    ],
+    "permissions": [
+        {
+            "user": "guest",
+            "vhost": "/",
+            "configure": ".*",
+            "write": ".*",
+            "read": ".*"
+        }
+    ],
+    "topic_permissions": [],
+    "parameters": [],
+    "global_parameters": [
+        {
+            "name": "cluster_tags",
+            "value": []
+        },
+        {
+            "name": "internal_cluster_id",
+            "value": "rabbitmq-cluster-id-71AFs2rFGwFm-NV9V0tTVQ"
+        }
+    ],
+    "policies": [],
     "queues": [
         {
             "name": "main.events",
@@ -57,32 +110,6 @@
             "destination_type": "queue",
             "routing_key": "#",
             "arguments": {}
-        }
-    ],
-    "services_config": [
-        {
-            "service_name": "main-local",
-            "service_routing_key": "system.event.configuration_ready.main-local",
-            "service_config": {
-                "exchange": "minio_events",
-                "queue": "main.events",
-                "routing_key": "minio.bucket.events",
-                "dlq_enabled": true,
-                "prefetch_count": 50,
-                "retry_policy": {
-                    "max_attempts": 3,
-                    "delay_ms": 1000
-                }
-            }
-        },
-        {
-            "service_name": "another-service",
-            "service_routing_key": "system.event.configuration_ready.another-service",
-            "service_config": {
-                "exchange": "",
-                "queue": "",
-                "routing_key": "events.*"
-            }
         }
     ]
 }
