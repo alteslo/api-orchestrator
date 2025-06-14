@@ -5,7 +5,7 @@ from typing import Any, Optional
 import aio_pika
 from aio_pika import ExchangeType, Message
 from aio_pika.abc import AbstractChannel, AbstractRobustConnection
-from api.rabbitmq.schemas import InfrastructureConfig, RMQDestinationType, SystemConfig
+from api.rabbitmq.schemas import InfrastructureConfig, RMQDestinationType, ServiceConfig
 
 from app.configs.settings import get_settings
 from app.src.api.rabbitmq.base import AMQPChannelFactory, AMQPConnectionFactory, BaseAMQPBroker
@@ -83,7 +83,7 @@ class RabbitMQClient(BaseAMQPBroker):
             self.config_file = Path(config_file)
         await self._setup_infrastructure()
 
-    async def publish_configuration_ready(self, services_config: list[SystemConfig]):
+    async def publish_configuration_ready(self, services_config: list[ServiceConfig]):
         """
         Публикует событие о готовности очереди в системный обменник.
         :param queue_name: Имя очереди, которая была создана
@@ -227,7 +227,7 @@ class RabbitMQClient(BaseAMQPBroker):
 
         logger.info("Дефолтная инфраструктура настроена")
 
-    # ==== Default factories (can be overridden via DI) ====
+    # ==== Фабрики по умолчанию (могут быть переопределены с помощью DI) ====
     async def _default_connection_factory(self) -> AbstractRobustConnection:
         return await aio_pika.connect_robust(
             host='rabbitmq-local',

@@ -5,11 +5,18 @@ from app.configs.settings import get_settings
 config = get_settings()
 
 
-class RMQDestinationType(Enum):
+class RMQDestinationType(str, Enum):
     QUEUE = 'queue'
     EXCHANGE = 'exchange'
 
 
+class RabbitMQEventType(str, Enum):
+    CONFIG_READY = 'config_ready'
+    # SERVICE_STARTED = "service_started"
+    # SERVICE_STOPPED = "service_stopped"
+
+
+# === Queue Config ===
 class QueueConfig(BaseModel):
     name: str
     vhost: str = "/"
@@ -39,13 +46,15 @@ class BindingConfig(BaseModel):
     arguments: dict = {}
 
 
-# === Service Config (необязательно, но удобно) ===
+# === Retry Policy Config ===
 class RetryPolicyConfig(BaseModel):
     max_attempts: int = 3
     delay_ms: int = 1000
 
 
-class ServiceConfig(BaseModel):
+# === Service Event Config ===
+class ServiceEventConfig(BaseModel):
+    event: str = RabbitMQEventType.CONFIG_READY  # TODO Подумать стоит ли делать по умолчанию
     queue: str
     routing_key: str
     dlq_enabled: bool = False
@@ -53,14 +62,14 @@ class ServiceConfig(BaseModel):
     retry_policy: RetryPolicyConfig | None = None
 
 
-class SystemConfig(BaseModel):
+class ServiceConfig(BaseModel):
     service_name: str
     service_routing_key: str
-    service_config: ServiceConfig
+    service_config: ServiceEventConfig
 
 
 class InfrastructureConfig(BaseModel):
     queues: list[QueueConfig | None] = []
     exchanges: list[ExchangeConfig | None] = []
     bindings: list[BindingConfig | None] = []
-    services_config: list[SystemConfig] | None = None
+    services_config: list[ServiceConfig] | None = None
