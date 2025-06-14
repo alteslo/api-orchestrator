@@ -30,6 +30,9 @@ ExchangeInfo = dict[str, Any]
 
 # TODO Разделение ответственности: вынести публикацию событий в отдельный класс.
 # TODO Импорты: получать константы из конфига.
+# TODO Retry-логика для соединения
+# TODO Health-check методы
+# TODO Механизм подтверждения (ack/nack) для сообщений
 
 
 class InfrastructureLoader:
