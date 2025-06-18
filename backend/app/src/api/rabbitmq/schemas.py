@@ -64,9 +64,13 @@ class RetryPolicyConfig(BaseModel):
 
 # === Service Event Config ===
 class ServiceBindingConfig(BaseModel):
+    exchange: str
     queue: str
     routing_key: str
-    dlq_enabled: bool = False
+    vhost: str = "/"
+    durable: bool = False
+    auto_delete: bool = False
+    arguments: dict = {}
     prefetch_count: int = 100
     retry_policy: RetryPolicyConfig | None = None
 

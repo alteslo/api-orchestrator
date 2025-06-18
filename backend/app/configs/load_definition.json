@@ -68,7 +68,14 @@
                     "exchange": "minio_events",
                     "queue": "main.events",
                     "routing_key": "minio.bucket.events",
-                    "dlq_enabled": true,
+                    "vhost": "/",
+                    "durable_": true,
+                    "auto_delete": false,
+                    "arguments": {
+                        "x-dead-letter-exchange": "minio_events_dlx",
+                        "x-dead-letter-routing-key": "minio_events_dlq",
+                        "x-queue-type": "classic"
+                    },
                     "prefetch_count": 50,
                     "retry_policy": {
                         "max_attempts": 3,
