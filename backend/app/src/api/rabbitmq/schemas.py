@@ -1,5 +1,8 @@
-from pydantic import BaseModel
 from enum import Enum
+from typing import Any
+
+from pydantic import BaseModel
+
 from app.configs.settings import get_settings
 
 config = get_settings()
@@ -14,6 +17,13 @@ class RabbitMQEventType(str, Enum):
     CONFIG_READY = 'config_ready'
     # SERVICE_STARTED = "service_started"
     # SERVICE_STOPPED = "service_stopped"
+
+
+# === Base Event Schema ===
+class Event(BaseModel):
+    """Базовая схема события"""
+    event_type: str
+    payload: Any
 
 
 # === Queue Config ===
@@ -53,8 +63,7 @@ class RetryPolicyConfig(BaseModel):
 
 
 # === Service Event Config ===
-class ServiceEventConfig(BaseModel):
-    event: str = RabbitMQEventType.CONFIG_READY  # TODO Подумать стоит ли делать по умолчанию
+class ServiceBindingConfig(BaseModel):
     queue: str
     routing_key: str
     dlq_enabled: bool = False
@@ -65,7 +74,7 @@ class ServiceEventConfig(BaseModel):
 class ServiceConfig(BaseModel):
     service_name: str
     service_routing_key: str
-    service_config: ServiceEventConfig
+    service_binding_conf: list[ServiceBindingConfig]
 
 
 class InfrastructureConfig(BaseModel):
@@ -73,3 +82,7 @@ class InfrastructureConfig(BaseModel):
     exchanges: list[ExchangeConfig | None] = []
     bindings: list[BindingConfig | None] = []
     services_config: list[ServiceConfig] | None = None
+
+
+class ConfigReadyEvent(Event):
+    ...
