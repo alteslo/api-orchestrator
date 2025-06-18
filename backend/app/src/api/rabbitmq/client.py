@@ -5,7 +5,6 @@ from typing import Any, Optional
 import aio_pika
 from aio_pika import ExchangeType, Message
 from aio_pika.abc import AbstractChannel, AbstractRobustConnection
-from api.rabbitmq.schemas import InfrastructureConfig, RMQDestinationType, ServiceConfig
 
 from app.configs.settings import get_settings
 from app.src.api.rabbitmq.base import AMQPChannelFactory, AMQPConnectionFactory, BaseAMQPBroker
@@ -20,6 +19,13 @@ from app.src.api.rabbitmq.constants import (
     RMQ_USER,
     SYSTEM_EXCHANGE_NAME
 )
+from app.src.api.rabbitmq.schemas import (
+    ConfigReadyEvent,
+    InfrastructureConfig,
+    RabbitMQEventType,
+    RMQDestinationType,
+    ServiceConfig
+)
 from app.src.core.logging import logger
 
 config = get_settings()
@@ -33,6 +39,7 @@ ExchangeInfo = dict[str, Any]
 # TODO Retry-логика для соединения
 # TODO Health-check методы
 # TODO Механизм подтверждения (ack/nack) для сообщений
+# TODO Переделать обработку ошибок
 
 
 class InfrastructureLoader:
@@ -107,14 +114,20 @@ class RabbitMQClient(BaseAMQPBroker):
 
             service_name = service.service_name
             service_routing_key = service.service_routing_key
-            service_config = service.service_config
+            service_binding_conf = service.service_binding_conf
 
             system_queue = await self.channel.declare_queue(name=service_name, durable=True)
             await system_queue.bind(system_exchange, routing_key=service_routing_key)
 
+            ready_event = ConfigReadyEvent(
+                event_type=RabbitMQEventType.CONFIG_READY,
+                payload=service_binding_conf
+            )
+
             try:
+
                 message = Message(
-                    body=service_config.model_dump_json().encode(),
+                    body=ready_event.model_dump_json().encode(),
                     content_type="application/json",
                     delivery_mode=2  # persistent message
                 )

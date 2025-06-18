@@ -63,26 +63,30 @@
         {
             "service_name": "main-local",
             "service_routing_key": "system.event.configuration_ready.main-local",
-            "service_config": {
-                "exchange": "minio_events",
-                "queue": "main.events",
-                "routing_key": "minio.bucket.events",
-                "dlq_enabled": true,
-                "prefetch_count": 50,
-                "retry_policy": {
-                    "max_attempts": 3,
-                    "delay_ms": 1000
+            "service_binding_conf": [
+                {
+                    "exchange": "minio_events",
+                    "queue": "main.events",
+                    "routing_key": "minio.bucket.events",
+                    "dlq_enabled": true,
+                    "prefetch_count": 50,
+                    "retry_policy": {
+                        "max_attempts": 3,
+                        "delay_ms": 1000
+                    }
                 }
-            }
+            ]
         },
         {
             "service_name": "another-service",
             "service_routing_key": "system.event.configuration_ready.another-service",
-            "service_config": {
-                "exchange": "",
-                "queue": "",
-                "routing_key": "events.*"
-            }
+            "service_binding_conf": [
+                {
+                    "exchange": "",
+                    "queue": "",
+                    "routing_key": "events.*"
+                }
+            ]
         }
     ]
 }
