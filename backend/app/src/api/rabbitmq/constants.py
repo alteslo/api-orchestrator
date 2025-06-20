@@ -1,3 +1,6 @@
+from enum import Enum
+
+
 RMQ_USER = "guest"
 RMQ_PASS = "guest"
 RMQ_PORT = 5672
@@ -12,3 +15,14 @@ DLX_ROUTING_KEY = "minio_events_dlq"
 SYSTEM_EXCHANGE_NAME = "system.exchange"
 SYSTEM_NOTIFICATION_QUEUE_NAME = "system.notifications.main-local.queue"
 SYSTEM_ROUTING_KEY = "system.event.configuration_ready"
+
+
+class RMQDestinationType(str, Enum):
+    QUEUE = 'queue'
+    EXCHANGE = 'exchange'
+
+
+class RabbitMQEventType(str, Enum):
+    CONFIG_READY = 'config_ready'
+    # SERVICE_STARTED = "service_started"
+    # SERVICE_STOPPED = "service_stopped"

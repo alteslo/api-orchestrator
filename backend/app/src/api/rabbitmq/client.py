@@ -17,15 +17,10 @@ from app.src.api.rabbitmq.constants import (
     RMQ_QUEUE_NAME,
     RMQ_ROUTING_KEY,
     RMQ_USER,
-    SYSTEM_EXCHANGE_NAME
+    SYSTEM_EXCHANGE_NAME,
+    RabbitMQEventType
 )
-from app.src.api.rabbitmq.schemas import (
-    ConfigReadyEvent,
-    InfrastructureConfig,
-    RabbitMQEventType,
-    RMQDestinationType,
-    ServiceConfig
-)
+from app.src.api.rabbitmq.schemas import ConfigReadyEvent, InfrastructureConfig, RMQDestinationType, ServiceConfig
 from app.src.core.logging import logger
 
 config = get_settings()

@@ -1,8 +1,10 @@
-from typing import AsyncGenerator
-from fastapi import Request
 from functools import lru_cache
-from api.rabbitmq.constants import RMQ_PASS, RMQ_USER
+from typing import AsyncGenerator
+
 import httpx
+from fastapi import Request
+
+from app.src.api.rabbitmq.constants import RMQ_PASS, RMQ_USER
 
 
 @lru_cache

@@ -1,11 +1,10 @@
+import httpx
 from fastapi import APIRouter, Depends, HTTPException
 
 from app.configs.settings import get_settings
+from app.src.api.rabbitmq.client import RabbitMQClient
 from app.src.api.rabbitmq.constants import RMQ_QUEUE_NAME
-import httpx
-
-from api.rabbitmq.client import RabbitMQClient
-from api.rabbitmq.deps import get_rabbitmq_client, get_rabbitmq_http_client
+from app.src.api.rabbitmq.deps import get_rabbitmq_client, get_rabbitmq_http_client
 
 rabbitmq_router = APIRouter()
 config = get_settings()

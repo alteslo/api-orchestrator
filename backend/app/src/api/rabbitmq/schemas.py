@@ -1,6 +1,6 @@
-from enum import Enum
 from typing import Any
 
+from app.src.api.rabbitmq.constants import RMQDestinationType
 from pydantic import BaseModel
 
 from app.configs.settings import get_settings
@@ -8,25 +8,7 @@ from app.configs.settings import get_settings
 config = get_settings()
 
 
-class RMQDestinationType(str, Enum):
-    QUEUE = 'queue'
-    EXCHANGE = 'exchange'
-
-
-class RabbitMQEventType(str, Enum):
-    CONFIG_READY = 'config_ready'
-    # SERVICE_STARTED = "service_started"
-    # SERVICE_STOPPED = "service_stopped"
-
-
-# === Base Event Schema ===
-class Event(BaseModel):
-    """Базовая схема события"""
-    event_type: str
-    payload: Any
-
-
-# === Queue Config ===
+# === Схемы настройки конфигурации rabbitmq ===
 class QueueConfig(BaseModel):
     name: str
     vhost: str = "/"
@@ -35,7 +17,6 @@ class QueueConfig(BaseModel):
     arguments: dict = {}
 
 
-# === Exchange Config ===
 class ExchangeConfig(BaseModel):
     name: str
     vhost: str = "/"
@@ -46,7 +27,6 @@ class ExchangeConfig(BaseModel):
     arguments: dict = {}
 
 
-# === Binding Config ===
 class BindingConfig(BaseModel):
     source: str
     vhost: str = "/"
@@ -56,13 +36,12 @@ class BindingConfig(BaseModel):
     arguments: dict = {}
 
 
-# === Retry Policy Config ===
+# === Схемы настройки конфигурации потребителей (динамическая подписка) ===
 class RetryPolicyConfig(BaseModel):
     max_attempts: int = 3
     delay_ms: int = 1000
 
 
-# === Service Event Config ===
 class ServiceBindingConfig(BaseModel):
     exchange: str
     queue: str
@@ -86,6 +65,13 @@ class InfrastructureConfig(BaseModel):
     exchanges: list[ExchangeConfig | None] = []
     bindings: list[BindingConfig | None] = []
     services_config: list[ServiceConfig] | None = None
+
+
+# === События RMQ ===
+class Event(BaseModel):
+    """Базовая схема события"""
+    event_type: str
+    payload: Any
 
 
 class ConfigReadyEvent(Event):
